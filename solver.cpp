@@ -60,24 +60,24 @@ void nqueen_master(	unsigned int n,
 	 * }
 	 */
 
-	std::vector< std::vector<unsigned int> partial_solutions;
+	std::vector< std::vector<unsigned int>> partial_solutions;
 
 
-	if (current_node == 0)
-
-
-
+	// if (current_node == 0)
 
 
 
-	int num_procs;
-	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 
-	for (int i = 0; i < num_procs; ++i) {
-		//
-	}
 
-	std::cout << num_procs << std::endl;
+
+	// int num_procs;
+	// MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+
+	// for (int i = 0; i < num_procs; ++i) {
+	// 	//
+	// }
+
+	// std::cout << num_procs << std::endl;
 
 	/******************* STEP 2: Send partial solutions to workers as they respond ********************/
 	/*

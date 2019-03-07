@@ -4,6 +4,11 @@
 #include <iostream>
 
 
+#define KILL_MESSAGE_TAG 0
+#define QUIT_MESSAGE_TAG
+#define PARTIAL_SOLUTION_TAG 1
+
+
 
 /*************************** DECLARE YOUR HELPER FUNCTIONS HERE ************************/
 
@@ -100,34 +105,68 @@ void nqueen_master(	unsigned int n,
 	 * }
 	 */
 
-	std::vector< std::vector<unsigned int>> partial_solutions;
+
+	int num_procs;
+	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+
+	std::vector<unsigned int> empty_solution;
+	empty_solution.reserve(n);
+
+	std::vector<unsigned int> current_partial = partial_generator(n, k, empty_solution);
+
+	for (int proc_rank = 1, i < num_procs; ++proc_rank) {
+		MPI_Send(current_partial, k, MPI_INT, proc_rank, PARTIAL_SOLUTION_TAG, MPI_COMM_WORLD);
+		
+		std::cout<<current_partial.back();
+		current_partial.back()++;
+		std::cout<<current_partial.back()<<std::endl;
+
+		current = partial_generator(n, k, current_partial);
+	}
 
 
-	// if (current_node == 0)
+	bool go = true;
+	bool final_partial_sent = false;
+
+	int num_processors_confirmed_dead;
+
+
+	while(not final_partial_sent || num_processors_confirmed_dead != num_procs - 1) {
+		
+		MPI_Status stat;
+		std::vector<unsigned int> completed_solution;
 
 
 
+		MPI_Recv(&completed_solution, n, MPI_INT, MPI_ANY_SOURCE,
+			MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 
 
+		if (status.MPI_TAG == QUIT_MESSAGE_TAG) {
+			num_processors_confirmed_dead++
+		}
 
-	// int num_procs;
-	// MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+		all_solns.push_back(completed_solution);
+
+		if (current_partial.size() == 0) {
+			void * buff;
+			MPI_Broadcast(buffer, k, MPI_INT, stat.MPI_SOURCE, KILL_MESSAGE_TAG, MPI_COMM_WORLD);
+			final_partial_sent = true;
+		} else {
+			MPI_Send(current_partial, k, MPI_INT, stat.MPI_SOURCE, PARTIAL_SOLUTION_TAG, MPI_COMM_WORLD);
+
+			current_partial.back()++;
+			current_partial = partial_generator(n, k, current_partial);
+		}
+	}  
+
+
 
 	// for (int i = 0; i < num_procs; ++i) {
 	// 	//
 	// }
 
 	// std::cout << num_procs << std::endl;
-
-	/******************* STEP 2: Send partial solutions to workers as they respond ********************/
-	/*
-	 * while() {
-	 * 		- receive completed work from a worker processor.
-	 * 		- create a partial solution
-	 * 		- send that partial solution to the worker that responded
-	 * 		- Break when no more partial solutions exist and all workers have responded with jobs handed to them
-	 * }
-	 */
 
 	/********************** STEP 3: Terminate **************************
 	 *
@@ -205,7 +244,7 @@ std::vector<unsigned int> partial_generator(unsigned int n, unsigned int k,
 
 
 	for (std::vector<unsigned int>::iterator it = next_partial.begin(); it != next_partial.end(); ++it) {
-		std::cout << *it;
+		std::cout << answer*it;
 	}
 
 	std::cout << std::endl;
@@ -222,6 +261,7 @@ std::vector<unsigned int> partial_generator(unsigned int n, unsigned int k,
 		next_partial.pop_back();
 
 		if (last_value + 1 >= n) {
+			
 			if (next_partial.size() == 0) {
 				return next_partial;
 			}

@@ -4,11 +4,6 @@
 #include <iostream>
 
 
-#define KILL_MESSAGE_TAG 0
-#define QUIT_MESSAGE_TAG
-#define PARTIAL_SOLUTION_TAG 1
-
-
 
 /*************************** DECLARE YOUR HELPER FUNCTIONS HERE ************************/
 
@@ -99,74 +94,82 @@ void nqueen_master(	unsigned int n,
 
 	/******************* STEP 1: Send one partial solution to each worker ********************/
 	/*
+
+
 	 * for (all workers) {
 	 * 		- create a partial solution.
 	 * 		- send that partial solution to a worker
 	 * }
 	 */
 
+	int jobs_out = 0;
+	int size;
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	std::vector<unsigned int> last_partial_sol;
+	for (int i = 1; i < size; i++) {
 
-	int num_procs;
-	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-
-	std::vector<unsigned int> empty_solution;
-	empty_solution.reserve(n);
-
-	std::vector<unsigned int> current_partial = partial_generator(n, k, empty_solution);
-
-	for (int proc_rank = 1, i < num_procs; ++proc_rank) {
-		MPI_Send(current_partial, k, MPI_INT, proc_rank, PARTIAL_SOLUTION_TAG, MPI_COMM_WORLD);
-		
-		std::cout<<current_partial.back();
-		current_partial.back()++;
-		std::cout<<current_partial.back()<<std::endl;
-
-		current = partial_generator(n, k, current_partial);
+		last_partial_sol = partial_generator(n, k, last_partial_sol);
+		int last_partial_sol_size = last_partial_sol.size();
+		if (last_partial_sol_size > 0) {
+			int terminating_signal = 1;
+			MPI_Send(&terminating_signal, 1, MPI_INT, i, 100, MPI_COMM_WORLD);
+			MPI_Send(&last_partial_sol[0], last_partial_sol_size, MPI_INT, i, 111, MPI_COMM_WORLD);
+			jobs_out += 1;
+			last_partial_sol[last_partial_sol.size() - 1] += 1;
+		} else {
+			// we have reached the end of the partial solutions before we have reached the end of
+			// the amount of processors we have allotted
+		}
 	}
 
+	std::vector< std::vector<unsigned int>> partial_solutions;
 
-	bool go = true;
-	bool final_partial_sent = false;
+	/******************* STEP 2: Send partial solutions to workers as they respond ********************/
+	/*
+	 * while() {
+	 * 		- receive completed work from a worker processor.
+	 * 		- create a partial solution
+	 * 		- send that partial solution to the worker that responded
+	 * 		- Break when no more partial solutions exist and all workers have responded with jobs handed to them
+	 * }
+	 */
 
-	int num_processors_confirmed_dead;
+	 while(last_partial_sol.size() > 0 || jobs_out > 0) {
 
+		 //get solns from worker
+		 int vec_size;
+		 std::vector<unsigned int> found_solns;
+		 MPI_Status status;
+		 MPI_Recv(&vec_size, 1, MPI_INT, MPI_ANY_SOURCE, 222, MPI_COMM_WORLD, &status);
+		 found_solns.resize(vec_size);
+		 MPI_Recv(&found_solns[0], vec_size, MPI_INT, status.MPI_SOURCE, 333, MPI_COMM_WORLD, &status);
+		 jobs_out -= 1;
+		 //add solns to all_solns vector
+		 int num_solns = vec_size / n;
 
-	while(not final_partial_sent || num_processors_confirmed_dead != num_procs - 1) {
-		
-		MPI_Status stat;
-		std::vector<unsigned int> completed_solution;
+		 for (int i = 1; i <= num_solns; i++) {
 
+			 std::vector<unsigned int> one_soln(found_solns.begin() +  ((i-1) * n), found_solns.begin() + (i * n));
+			 all_solns.push_back(one_soln);
 
-
-		MPI_Recv(&completed_solution, n, MPI_INT, MPI_ANY_SOURCE,
-			MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-
-
-		if (status.MPI_TAG == QUIT_MESSAGE_TAG) {
-			num_processors_confirmed_dead++
-		}
-
-		all_solns.push_back(completed_solution);
-
-		if (current_partial.size() == 0) {
-			void * buff;
-			MPI_Broadcast(buffer, k, MPI_INT, stat.MPI_SOURCE, KILL_MESSAGE_TAG, MPI_COMM_WORLD);
-			final_partial_sent = true;
-		} else {
-			MPI_Send(current_partial, k, MPI_INT, stat.MPI_SOURCE, PARTIAL_SOLUTION_TAG, MPI_COMM_WORLD);
-
-			current_partial.back()++;
-			current_partial = partial_generator(n, k, current_partial);
-		}
-	}  
+		 }
 
 
 
-	// for (int i = 0; i < num_procs; ++i) {
-	// 	//
-	// }
+		 if (last_partial_sol.size() > 0) {
+			 last_partial_sol = partial_generator(n, k, last_partial_sol);
 
-	// std::cout << num_procs << std::endl;
+			 int terminating_signal = 1;
+			 MPI_Send(&terminating_signal, 1, MPI_INT, status.MPI_SOURCE, 100, MPI_COMM_WORLD);
+			 MPI_Send(&last_partial_sol[0], last_partial_sol.size(), MPI_INT, status.MPI_SOURCE, 111, MPI_COMM_WORLD);
+			 jobs_out += 1;
+			 if (last_partial_sol.size() > 0 ) {
+				 last_partial_sol[last_partial_sol.size() - 1] += 1;
+			 }
+		 }
+
+	 }
+
 
 	/********************** STEP 3: Terminate **************************
 	 *
@@ -174,6 +177,10 @@ void nqueen_master(	unsigned int n,
 	 *
 	 */
 
+	 for (int i = 1; i < size; i++) {
+		 int terminating_signal = -1;
+		 MPI_Send(&terminating_signal, 1, MPI_INT, i, 100, MPI_COMM_WORLD);
+	 }
 
 
 
@@ -208,6 +215,36 @@ void nqueen_worker(	unsigned int n,
 	 *	}
 	 */
 
+	 bool running = true;
+	 while (running) {
+		 int term_sig;
+		 MPI_Status status;
+		 MPI_Recv(&term_sig, 1, MPI_INT, 0, 100, MPI_COMM_WORLD, &status);
+		 if (term_sig > 0) {
+			 std::vector<std::vector<unsigned int>> all_finished_solns;
+			 std::vector<unsigned int> partial_solution;
+			 partial_solution.resize(k);
+			 MPI_Recv(&partial_solution[0], k, MPI_INT, 0, 111, MPI_COMM_WORLD, &status);
+			 seq_solver(n, partial_solution, all_finished_solns);
+			 std::vector<unsigned int> sendable_vec;
+			 for (int i = 0; i <  all_finished_solns.size(); i++) {
+				 std::vector<unsigned int> cur_vec = all_finished_solns[i];
+				 for (int j= 0; j < cur_vec.size(); j++) {
+					 sendable_vec.push_back(cur_vec[j]);
+				 }
+			 }
+
+			 int sendable_vec_size = sendable_vec.size();
+			 MPI_Send(&sendable_vec_size, 1, MPI_INT, 0, 222, MPI_COMM_WORLD);
+			 MPI_Send(&sendable_vec[0], sendable_vec.size(), MPI_INT, 0, 333, MPI_COMM_WORLD);
+
+
+		 } else {
+			 running = false;
+		 }
+
+	 }
+
 
 }
 
@@ -229,7 +266,7 @@ void seq_solver(unsigned int n, std::vector<unsigned int>& current_solution,
 
 		if (is_valid(current_solution,n)) {
 			seq_solver(n, current_solution, all_solns);
-		} 
+		}
 
 		current_solution.pop_back();
 	}
@@ -244,10 +281,10 @@ std::vector<unsigned int> partial_generator(unsigned int n, unsigned int k,
 
 
 	for (std::vector<unsigned int>::iterator it = next_partial.begin(); it != next_partial.end(); ++it) {
-		std::cout << answer*it;
+		//std::cout << *it;
 	}
 
-	std::cout << std::endl;
+	//std::cout << std::endl;
 
 	if (is_valid(next_partial,n)) {
 		if (next_partial.size() == k) {
@@ -261,7 +298,6 @@ std::vector<unsigned int> partial_generator(unsigned int n, unsigned int k,
 		next_partial.pop_back();
 
 		if (last_value + 1 >= n) {
-			
 			if (next_partial.size() == 0) {
 				return next_partial;
 			}
@@ -321,7 +357,7 @@ unsigned int is_valid(std::vector<unsigned int>& possible_sol, unsigned int n) {
 			if (l >= n) {
 				return 0;
 			}
-		
+
 			if (j == l || abs_difference(i, k) == abs_difference(j, l)) {
 				return 0;
 			}
@@ -336,7 +372,3 @@ unsigned int is_valid(std::vector<unsigned int>& possible_sol, unsigned int n) {
 unsigned int abs_difference(unsigned int i, unsigned int j) {
 	return i > j ? i - j : j - i;
 }
-
-
-
-

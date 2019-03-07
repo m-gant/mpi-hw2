@@ -105,7 +105,23 @@ void nqueen_master(	unsigned int n,
 	int jobs_out = 0;
 	int size;
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+
+
+
 	std::vector<unsigned int> empty_solution;
+
+
+	if (k == 0) {
+		seq_solver(n, empty_solution, all_solns);
+
+		for (int i = 1; i < size; i++) {
+			int terminating_signal = -1;
+		 	MPI_Send(&terminating_signal, 1, MPI_INT, i, 100, MPI_COMM_WORLD);
+	 	}
+
+	 	return;
+	}
 
 	std::vector<unsigned int> last_partial_sol = partial_generator(n, k, empty_solution);
 

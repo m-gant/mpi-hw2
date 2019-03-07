@@ -8,7 +8,7 @@
 /*************************** DECLARE YOUR HELPER FUNCTIONS HERE ************************/
 
 
-unsigned int is_valid(std::vector<unsigned int>& current_solution);
+unsigned int is_valid(std::vector<unsigned int>& current_solution, unsigned int n);
 
 //i - j if i > j else j - i
 unsigned int abs_difference(unsigned int i, unsigned int j);
@@ -16,7 +16,10 @@ unsigned int abs_difference(unsigned int i, unsigned int j);
 void seq_solver(unsigned int n, std::vector<unsigned int>& current_solution,
 	std::vector<std::vector<unsigned int> >& all_solns);
 
-void generate_next(int size, std::vector<unsigned int>& solution);
+
+std::vector<unsigned int> partial_generator(unsigned int n, unsigned int k,
+	std::vector<unsigned int> next_partial);
+
 
 /*************************** solver.h functions ************************/
 
@@ -29,6 +32,43 @@ void seq_solver(unsigned int n, std::vector<std::vector<unsigned int> >& all_sol
 	empty_solution.reserve(n);
 
 	seq_solver(n, empty_solution, all_solns);
+
+	// std::vector<unsigned int> current_solution = partial_generator(n, n, empty_solution);
+
+
+
+
+	// std::cout << "answer" << std::endl;
+	// for (std::vector<unsigned int>::iterator it = current_solution.begin(); it != current_solution.end(); ++it) {
+	// 	std::cout << *it;
+	// }
+
+	// std::cout << std::endl;
+
+	// unsigned int last_value = current_solution.back();
+	// current_solution.pop_back();
+	// current_solution.push_back(++last_value);
+
+	// current_solution = partial_generator(n, n, current_solution);
+	// std::cout << "answer" << std::endl;
+	// for (std::vector<unsigned int>::iterator it = current_solution.begin(); it != current_solution.end(); ++it) {
+	// 	std::cout << *it;
+	// }
+
+	// std::cout << std::endl;
+
+	// while(true) {
+	// 	unsigned int last_value = current_solution.back();
+	// 	current_solution.pop_back();
+	// 	current_solution.push_back(last_value + 1);
+	// 	current_solution = partial_generator(n, n, current_solution);
+
+	// 	if (current_solution.size() == 0) {
+	// 		break;
+	// 	}
+
+	// 	all_solns.push_back(current_solution);
+	// }
 
 	// std::cout << all_solns.size() <<  std::endl;
 }
@@ -148,7 +188,7 @@ void seq_solver(unsigned int n, std::vector<unsigned int>& current_solution,
 
 		current_solution.push_back(i);
 
-		if (is_valid(current_solution)) {
+		if (is_valid(current_solution,n)) {
 			seq_solver(n, current_solution, all_solns);
 		} 
 
@@ -157,6 +197,55 @@ void seq_solver(unsigned int n, std::vector<unsigned int>& current_solution,
 
 
 }
+
+
+
+std::vector<unsigned int> partial_generator(unsigned int n, unsigned int k,
+	std::vector<unsigned int> next_partial) {
+	
+	std::cout << "hello" << std::endl;
+
+	for (std::vector<unsigned int>::iterator it = next_partial.begin(); it != next_partial.end(); ++it) {
+		std::cout << *it;
+	}
+
+	std::cout << std::endl;
+
+	if (is_valid(next_partial,n)) {
+		std::cout << "outside is_valid!"<< std::endl;
+		if (next_partial.size() == k) {
+			return next_partial;
+		} else {
+			std::cout << "hello";
+			next_partial.push_back(0);
+			std::cout<<"hello2" << std::endl;
+			return partial_generator(n, k, next_partial);
+		}
+	} else {
+		unsigned int last_value = next_partial.back();
+		next_partial.pop_back();
+
+		if (last_value + 1 >= n) {
+			if (next_partial.size() == 0) {
+				return next_partial;
+			}
+
+
+			unsigned int second_to_last_value = next_partial.back();
+			next_partial.pop_back();
+
+			next_partial.push_back(second_to_last_value + 1);
+			return partial_generator(n, k, next_partial);
+
+		} else {
+			next_partial.push_back(last_value + 1);
+			return partial_generator(n,k, next_partial);
+		}
+	}
+
+}
+
+
 
 
 // void set_next_partial_from_current(unsigned int size, std::vector<unsigned int>& partial_solution) {
@@ -177,13 +266,25 @@ void seq_solver(unsigned int n, std::vector<unsigned int>& current_solution,
 // }
 
 
-unsigned int is_valid(std::vector<unsigned int>& possible_sol) {
+unsigned int is_valid(std::vector<unsigned int>& possible_sol, unsigned int n) {
 
-	for (int i = 0; i < possible_sol.size() - 1; i++) {
+	if (possible_sol.size() == 1) {
+		return possible_sol[0] < n;
+	}
+
+	for (int i = 0; i < int(possible_sol.size()) - 1; i++) {
 		unsigned int j = possible_sol[i];
 
-		for (int k = i + 1; k < possible_sol.size(); k++) {
+		if (j >= n) {
+			return 0;
+		}
+
+		for (int k = i + 1; k < int(possible_sol.size()); k++) {
 			unsigned int l = possible_sol[k];
+
+			if (l >= n) {
+				return 0;
+			}
 		
 			if (j == l || abs_difference(i, k) == abs_difference(j, l)) {
 				return 0;
@@ -191,6 +292,7 @@ unsigned int is_valid(std::vector<unsigned int>& possible_sol) {
 
 		}
 	}
+
 
 	return 1;
 }

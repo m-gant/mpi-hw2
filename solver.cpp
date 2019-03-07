@@ -202,8 +202,7 @@ void seq_solver(unsigned int n, std::vector<unsigned int>& current_solution,
 
 std::vector<unsigned int> partial_generator(unsigned int n, unsigned int k,
 	std::vector<unsigned int> next_partial) {
-	
-	std::cout << "hello" << std::endl;
+
 
 	for (std::vector<unsigned int>::iterator it = next_partial.begin(); it != next_partial.end(); ++it) {
 		std::cout << *it;
@@ -212,13 +211,10 @@ std::vector<unsigned int> partial_generator(unsigned int n, unsigned int k,
 	std::cout << std::endl;
 
 	if (is_valid(next_partial,n)) {
-		std::cout << "outside is_valid!"<< std::endl;
 		if (next_partial.size() == k) {
 			return next_partial;
 		} else {
-			std::cout << "hello";
 			next_partial.push_back(0);
-			std::cout<<"hello2" << std::endl;
 			return partial_generator(n, k, next_partial);
 		}
 	} else {

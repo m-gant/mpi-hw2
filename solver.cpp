@@ -18,7 +18,7 @@ void seq_solver(unsigned int n, std::vector<unsigned int>& current_solution,
 
 
 std::vector<unsigned int> partial_generator(unsigned int n, unsigned int k,
-	std::vector<unsigned int> next_partial);
+	std::vector<unsigned int>& next_partial);
 
 
 /*************************** solver.h functions ************************/
@@ -105,11 +105,17 @@ void nqueen_master(	unsigned int n,
 	int jobs_out = 0;
 	int size;
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
-	std::vector<unsigned int> last_partial_sol;
+	std::vector<unsigned int> empty_solution;
+
+	std::vector<unsigned int> last_partial_sol = partial_generator(n, k, empty_solution);
+
+
+
 	for (int i = 1; i < size; i++) {
 
-		last_partial_sol = partial_generator(n, k, last_partial_sol);
+
 		int last_partial_sol_size = last_partial_sol.size();
+
 		if (last_partial_sol_size > 0) {
 			int terminating_signal = 1;
 			MPI_Send(&terminating_signal, 1, MPI_INT, i, 100, MPI_COMM_WORLD);
@@ -119,10 +125,12 @@ void nqueen_master(	unsigned int n,
 		} else {
 			// we have reached the end of the partial solutions before we have reached the end of
 			// the amount of processors we have allotted
+			break;
 		}
+
+		last_partial_sol = partial_generator(n, k, last_partial_sol);
 	}
 
-	std::vector< std::vector<unsigned int>> partial_solutions;
 
 	/******************* STEP 2: Send partial solutions to workers as they respond ********************/
 	/*
@@ -136,37 +144,43 @@ void nqueen_master(	unsigned int n,
 
 	 while(last_partial_sol.size() > 0 || jobs_out > 0) {
 
+
 		 //get solns from worker
-		 int vec_size;
-		 std::vector<unsigned int> found_solns;
-		 MPI_Status status;
-		 MPI_Recv(&vec_size, 1, MPI_INT, MPI_ANY_SOURCE, 222, MPI_COMM_WORLD, &status);
-		 found_solns.resize(vec_size);
-		 MPI_Recv(&found_solns[0], vec_size, MPI_INT, status.MPI_SOURCE, 333, MPI_COMM_WORLD, &status);
-		 jobs_out -= 1;
+		int vec_size;
+		std::vector<unsigned int> found_solns;
+		
+		MPI_Status status;
+		MPI_Recv(&vec_size, 1, MPI_INT, MPI_ANY_SOURCE, 222, MPI_COMM_WORLD, &status);
+		found_solns.resize(vec_size);
+		MPI_Recv(&found_solns[0], vec_size, MPI_INT, status.MPI_SOURCE, 333, MPI_COMM_WORLD, &status);
+		jobs_out -= 1;
+
+		if (last_partial_sol.size() == k) {
+	 		int terminating_signal = 1;
+			MPI_Send(&terminating_signal, 1, MPI_INT, status.MPI_SOURCE, 100, MPI_COMM_WORLD);
+			MPI_Send(&last_partial_sol[0], last_partial_sol.size(), MPI_INT, status.MPI_SOURCE, 111, MPI_COMM_WORLD);
+			jobs_out += 1;
+		}
+
+
 		 //add solns to all_solns vector
-		 int num_solns = vec_size / n;
+		int num_solns = vec_size / n;
 
-		 for (int i = 1; i <= num_solns; i++) {
+		for (int i = 1; i <= num_solns; i++) {
 
-			 std::vector<unsigned int> one_soln(found_solns.begin() +  ((i-1) * n), found_solns.begin() + (i * n));
-			 all_solns.push_back(one_soln);
+			std::vector<unsigned int> one_soln(found_solns.begin() +  ((i-1) * n), found_solns.begin() + (i * n));
+			all_solns.push_back(one_soln);
 
-		 }
+		}
 
 
 
-		 if (last_partial_sol.size() > 0) {
-			 last_partial_sol = partial_generator(n, k, last_partial_sol);
+		if (last_partial_sol.size() > 0) {
+			
+			last_partial_sol[last_partial_sol.size() - 1] += 1;
 
-			 int terminating_signal = 1;
-			 MPI_Send(&terminating_signal, 1, MPI_INT, status.MPI_SOURCE, 100, MPI_COMM_WORLD);
-			 MPI_Send(&last_partial_sol[0], last_partial_sol.size(), MPI_INT, status.MPI_SOURCE, 111, MPI_COMM_WORLD);
-			 jobs_out += 1;
-			 if (last_partial_sol.size() > 0 ) {
-				 last_partial_sol[last_partial_sol.size() - 1] += 1;
-			 }
-		 }
+			last_partial_sol = partial_generator(n, k, last_partial_sol);
+		}
 
 	 }
 
@@ -221,11 +235,17 @@ void nqueen_worker(	unsigned int n,
 		 MPI_Status status;
 		 MPI_Recv(&term_sig, 1, MPI_INT, 0, 100, MPI_COMM_WORLD, &status);
 		 if (term_sig > 0) {
+
 			 std::vector<std::vector<unsigned int>> all_finished_solns;
 			 std::vector<unsigned int> partial_solution;
+
 			 partial_solution.resize(k);
+
+
 			 MPI_Recv(&partial_solution[0], k, MPI_INT, 0, 111, MPI_COMM_WORLD, &status);
+
 			 seq_solver(n, partial_solution, all_finished_solns);
+
 			 std::vector<unsigned int> sendable_vec;
 			 for (int i = 0; i <  all_finished_solns.size(); i++) {
 				 std::vector<unsigned int> cur_vec = all_finished_solns[i];
@@ -277,14 +297,14 @@ void seq_solver(unsigned int n, std::vector<unsigned int>& current_solution,
 
 
 std::vector<unsigned int> partial_generator(unsigned int n, unsigned int k,
-	std::vector<unsigned int> next_partial) {
+	std::vector<unsigned int>& next_partial) {
 
 
-	for (std::vector<unsigned int>::iterator it = next_partial.begin(); it != next_partial.end(); ++it) {
-		//std::cout << *it;
-	}
+	// for (std::vector<unsigned int>::iterator it = next_partial.begin(); it != next_partial.end(); ++it) {
+	// 	std::cout << *it;
+	// }
 
-	//std::cout << std::endl;
+	// std::cout << std::endl;
 
 	if (is_valid(next_partial,n)) {
 		if (next_partial.size() == k) {
@@ -298,6 +318,7 @@ std::vector<unsigned int> partial_generator(unsigned int n, unsigned int k,
 		next_partial.pop_back();
 
 		if (last_value + 1 >= n) {
+			
 			if (next_partial.size() == 0) {
 				return next_partial;
 			}
@@ -317,25 +338,6 @@ std::vector<unsigned int> partial_generator(unsigned int n, unsigned int k,
 
 }
 
-
-
-
-// void set_next_partial_from_current(unsigned int size, std::vector<unsigned int>& partial_solution) {
-
-// 	if (partial_solution.size() != size) {
-// 		std::ostringstream err_msg;
-// 		err_msg << "\n";
-
-// 		err_msg << "partial_solution passed to set_next_partial_from_current isn't expected size";
-// 		std::cout << err_msg.str() << std::endl;
-// 		MPI_Abort(MPI_COMM_WORLD, 1);
-
-// 	}
-
-// 	if (partial_solution.size() < size) {
-// 		for (int i = 0; i < possible_sol.size())
-// 	}
-// }
 
 
 unsigned int is_valid(std::vector<unsigned int>& possible_sol, unsigned int n) {
